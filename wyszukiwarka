@@ -1,0 +1,57 @@
+"""
+Kod wyszukuje pierwszy akapit z ulotek znajdujących się w folderze 'ulotki', ktory zawiera 
+informacje odnośnie celu zastosowania leku i nastepnie naa podstawie frazy, dopasowuje
+najlepiej pasujacy lek.
+Wykorzystanie przetwarzania i wyszukiwania wektorowego.
+"""
+
+import os
+import fitz  # PyMuPDF
+
+ulotki = os.listdir('ulotki')
+
+fragmenty = []
+
+for ulotka in ulotki:
+  
+  document = fitz.open(os.path.join('ulotki',ulotka))
+  
+  # Wyciągnij tekst ze wszystkich stron
+  text = ""
+  for page_num in range(document.page_count):
+    page = document.load_page(page_num)
+    text += page.get_text()
+  
+  start_phrase = "w jakim celu się go stosuje"
+  end_phrase = "Informacje ważne przed"
+
+  first_start = text.find(start_phrase) + len(start_phrase)
+  start_index = text.find(start_phrase, first_start+1) + len(start_phrase)
+  first_end = text.find(end_phrase)
+  end_index = text.find(end_phrase, first_end+1)
+
+  fragment = text[start_index:end_index].strip()
+
+  fragment = fragment.replace("\n", " ")
+
+  fragmenty.append(fragment[:-3])
+
+
+from sentence_transformers import SentenceTransformer
+from sentence_transformers.util import cos_sim
+
+query_prefix = "query: "
+answer_prefix = "passage: "
+queries = [query_prefix + "lek na zatkany nos"]
+
+answers = []
+
+for fragment in fragmenty:
+  answers.append(answer_prefix + fragment)
+
+model = SentenceTransformer("sdadas/mmlw-retrieval-e5-large")
+queries_emb = model.encode(queries, convert_to_tensor=True, show_progress_bar=False)
+answers_emb = model.encode(answers, convert_to_tensor=True, show_progress_bar=False)
+
+best_answer = cos_sim(queries_emb, answers_emb).argmax().item()
+print(answers[best_answer])
